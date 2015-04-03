@@ -1,0 +1,51 @@
+
+
+package noc;
+
+import com.maxeler.maxcompiler.v2.build.EngineParameters;
+import com.maxeler.maxcompiler.v2.managers.custom.CustomManager;
+import com.maxeler.maxcompiler.v2.managers.custom.blocks.KernelBlock;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.CPUTypes;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.EngineInterface;
+import com.maxeler.maxcompiler.v2.managers.engine_interfaces.InterfaceParam;
+
+class NetworkOnChipManager extends CustomManager {
+	private static final CPUTypes UINT8 = CPUTypes.UINT8;
+	private static final CPUTypes UINT16 = CPUTypes.UINT16;
+	private static final CPUTypes UINT32 = CPUTypes.UINT32;
+	private static final String NETWORK_ON_CHIP_KERNEL = "NetworkOnChipKernel";
+	NetworkOnChipManager(EngineParameters engineParameters) {
+		super(engineParameters);
+
+		KernelBlock k = addKernel(
+			new NetworkOnChipKernel(makeKernelParameters("NetworkOnChipKernel")));
+	}
+
+	static EngineInterface interfaceDefault() {
+		EngineInterface ei = new EngineInterface();
+		InterfaceParam size = ei.addParam("size", UINT32);
+		InterfaceParam pe_in_vld    = ei.addParam("pe_in_vld", UINT8);
+		InterfaceParam pe_out_bp    = ei.addParam("pe_out_bp", UINT8);
+		InterfaceParam XSwitch    = ei.addParam("XSwitch", UINT8);
+		InterfaceParam YSwitch    = ei.addParam("YSwitch", UINT8);
+		InterfaceParam pe_in_nodeaddr    = ei.addParam("pe_in_nodeaddr", UINT16);
+		InterfaceParam pe_in_data    = ei.addParam("pe_in_data", UINT16);
+		ei.setTicks(NETWORK_ON_CHIP_KERNEL, size);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "pe_in_vld", pe_in_vld);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "pe_out_bp", pe_out_bp);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "XSwitch", XSwitch);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "YSwitch", YSwitch);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "pe_in_nodeaddr", pe_in_nodeaddr);
+		ei.setScalar(NETWORK_ON_CHIP_KERNEL, "pe_in_data", pe_in_data);
+
+		return ei;
+	}
+
+	public static void main(String[] args) {
+		EngineParameters params = new EngineParameters(args);
+		NetworkOnChipManager manager = new NetworkOnChipManager(params);
+		manager.createSLiCinterface(interfaceDefault());
+		manager.build();
+	}
+}
+

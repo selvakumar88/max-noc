@@ -1,0 +1,169 @@
+package noc;
+
+import com.maxeler.maxcompiler.v2.kernelcompiler.Kernel;
+import com.maxeler.maxcompiler.v2.kernelcompiler.KernelParameters;
+import com.maxeler.maxcompiler.v2.kernelcompiler.stdlib.core.Constant;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.base.DFEVar;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStruct;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType;
+import com.maxeler.maxcompiler.v2.kernelcompiler.types.composite.DFEStructType.StructFieldType;
+
+public class NetworkOnChipKernel extends Kernel {
+
+	private static final int PE = 0;
+	private static final int UP = 1;
+	private static final int DOWN = 2;
+	private static final int LEFT = 3;
+	private static final int RIGHT = 4;
+	private static final int NONE = 5;
+
+	private static final int pos_x = 0;
+	private static final int pos_y = 0;
+
+	DFEVar zero = constant.var(dfeUInt(8),0);
+
+	DFEStructType pe_addr_t;
+
+	StructFieldType x;
+	StructFieldType y;
+
+	DFEVar start = constant.var(dfeBool(),1);
+
+	DFEStruct switch_address;
+	DFEStruct packet_address;
+	DFEStruct pe_out_peaddr;
+
+	DFEVar input  = constant.var(dfeUInt(3),0);
+	DFEVar delX = constant.var(dfeUInt(8),0) ;
+	DFEVar delY = constant.var(dfeUInt(8),0) ;
+
+	DFEVar PE_HW_Var= constant.var(dfeUInt(3),PE);
+	DFEVar Up_HW_Var= constant.var(dfeUInt(3),UP);
+	DFEVar Down_HW_Var= constant.var(dfeUInt(3),DOWN);
+	DFEVar Left_HW_Var= constant.var(dfeUInt(3),LEFT);
+	DFEVar Right_Hw_Var= constant.var(dfeUInt(3),RIGHT);
+
+	//Mesh _ Switch Registers
+	//input
+	DFEVar pe_in_vld ;
+	DFEVar pe_out_bp ;
+	DFEVar pe_in_nodeaddr;
+	DFEVar pe_in_data ;
+
+	//output
+	DFEVar pe_out_vld;
+	DFEVar pe_in_bp;
+	DFEVar pe_out_nodeaddr;
+	DFEVar pe_out_data;
+	DFEVar pe_out_mux;
+
+
+	DFEVar pe = constant.var(dfeUInt(3),5) ;//constant.var(5);
+	DFEVar left = constant.var(dfeUInt(3),5) ;//constant.var(5);
+	DFEVar right = constant.var(dfeUInt(3),5) ;//constant.var(5);
+	DFEVar up = constant.var(dfeUInt(3),5) ;//constant.var(5);
+	DFEVar down = constant.var(dfeUInt(3),5) ;//constant.var(5);
+
+	//File dependent register names
+	DFEVar source_x = constant.var(dfeUInt(8),0);
+	DFEVar source_y = constant.var(dfeUInt(8),0);
+
+
+	protected NetworkOnChipKernel(KernelParameters parameters) {
+		super(parameters);
+		x = new StructFieldType("x", dfeUInt(8));
+		y = new StructFieldType("y", dfeUInt(8));
+		pe_addr_t = new DFEStructType(x, y);
+		switch_address = pe_addr_t.newInstance(this);
+		pe_out_peaddr = pe_addr_t.newInstance(this);
+		packet_address = pe_addr_t.newInstance(this);
+
+		constant.struct(pe_addr_t, Constant.sfv("x",pos_x),Constant.sfv("y",pos_y));
+
+		pe_in_vld = io.scalarInput("pe_in_vld", dfeBool());
+		pe_out_bp = io.scalarInput("pe_out_bp", dfeUInt(8));
+// TODO Verify structure can be passed from CPU
+		packet_address["x"] = io.scalarInput("XSwitch", dfeUInt(8));
+		packet_address["y"] = io.scalarInput("YSwitch", dfeUInt(8));
+		switch_address["x"] = source_x;
+		switch_address["y"] = source_y;
+		pe_in_nodeaddr = io.scalarInput("pe_in_nodeaddr", dfeUInt(16));
+		pe_in_data = io.scalarInput("pe_in_data", dfeUInt(16));
+
+		route_arb();
+		DFEVar select = pe_out_mux === PE_HW_Var;
+		control.mux(select, MeshPE(),UpPE());
+
+// TODO to route Scalar output to CPU for PE
+//		io.output("pe_out_vld", pe_out_vld,dfeBool());
+//		io.output("pe_out_bp",pe_out_bp, dfeBool());
+//		io.output("pe_out_peaddr",pe_out_peaddr, pe_addr_t);
+//		io.output("pe_out_nodeaddr", pe_out_nodeaddr,dfeUInt(16));
+//		io.output("pe_out_data",pe_out_data, dfeUInt(16));
+
+	}
+
+	private DFEVar MeshPE()
+	{
+		pe_out_vld = zero;
+		pe_out_data = zero + 1; // hardcoded to ramp values
+		pe_out_nodeaddr = zero + 2;
+		pe_out_peaddr["x"] = zero + 3 ;
+		pe_out_peaddr["y"] = zero + 4  ;
+		return zero;
+	}
+	private DFEVar UpPE()
+	{
+		//Todo
+		return zero;
+	}
+	private void route_arb()
+	{
+		dor(PE_HW_Var,pe);
+		dor(Left_HW_Var,left);
+		dor(Right_Hw_Var,right);
+		dor(Up_HW_Var,up);
+		dor(Down_HW_Var,down);
+
+// TODO to decide 255 or 7
+		pe_out_mux = (pe_out_bp === 1)? 254:(pe===PE_HW_Var)? PE_HW_Var : (left===PE_HW_Var) ? Left_HW_Var:(right===PE_HW_Var) ? Right_Hw_Var : (up===PE_HW_Var) ? Up_HW_Var : (down===PE_HW_Var) ? Down_HW_Var:7;
+		pe_in_bp = pe_in_vld & (pe_out_mux!==PE_HW_Var ); // Need to add for other direction.. currently PE implementation
+	}
+	private void dor(DFEVar input,DFEVar direction)
+	{
+		 delX = (DFEVar) packet_address["x"] - (DFEVar) switch_address["x"];
+		 delY = (DFEVar) packet_address["y"] - (DFEVar) switch_address["y"];
+		 direction = control.mux(input,PEDirection(),UpDirection(),DownDirection(),RightDirection(),LeftDirection());
+		 pe = pe_in_vld === 0  ? constant.var(253):direction; //pe is set to 3 bits wide where 253 is assigned
+
+	}
+
+	private DFEVar PEDirection()
+	{
+		DFEVar flag  = (delX === 0 & delY > 0) ? Up_HW_Var: (delX === 0 & delY < 0) ? Down_HW_Var : (delX > 0) ? Right_Hw_Var : delY < 0 ? Left_HW_Var : delX === 0 & delY === 0 ? PE_HW_Var:NONE;
+		return flag;
+	}
+	private DFEVar UpDirection()
+	{
+		DFEVar flag  = ((delX.eq(0)) & (delY.eq(0))) ? PE_HW_Var : ( (delX.eq(0)) & (delY < 0))? Down_HW_Var : NONE ;
+		return flag;
+	}
+	private DFEVar DownDirection()
+	{
+		DFEVar flag  = (delX === 0 & delY === 0) ? PE_HW_Var : (delX === 0 & delY > 0) ? Up_HW_Var : 5 ;
+		return flag;
+	}
+	private DFEVar RightDirection()
+	{
+		DFEVar flag  = (delX === 0 & delY === 0) ? PE_HW_Var : (delX === 0 & delY > 0) ? Up_HW_Var  : (delX === 0 & delY < 0) ? Down_HW_Var  : (delX < 0 ) ? Left_HW_Var  : NONE ;
+		return flag;
+	}
+
+	private DFEVar LeftDirection()
+	{
+		DFEVar flag  = (delX === 0 & delY === 0) ? PE_HW_Var: (delX === 0 & delY > 0) ? Up_HW_Var  : (delX === 0 & delY < 0) ? Down_HW_Var  : (delX > 0 ) ? Right_Hw_Var  : 5 ;
+		return flag;
+	}
+
+
+}
